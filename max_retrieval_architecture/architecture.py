@@ -18,15 +18,16 @@ class MLP(nn.Module):
 class MaxRetrievalModel(nn.Module):
     def __init__(
         self,
+        simplex_mapping: SimplexMappingEnum,
         d_emb: int,
         n_classes: int,
         item_input_dim: int,
         query_input_dim: int = 1,
-        softmax: Literal['traditional', 'stieltjes', 'adaptive'] = 'traditional',
-        **kwargs # To pass q to stieltjes
+        **kwargs #additional args to be used in construction simplex mapping obj
     ):
         super().__init__()
-        self._translation_name = softmax
+        self._translation_cls = simplex_mapping.value
+        self._translate_logits = self._translation_cls(**kwargs)
         self.d_emb = d_emb
         
         self.psi_x = MLP(item_input_dim, d_emb, d_emb) #items
@@ -37,40 +38,31 @@ class MaxRetrievalModel(nn.Module):
         self.v_proj = nn.Linear(d_emb, d_emb)
         
         self.phi = MLP(d_emb, d_emb, n_classes)
-        
-        if softmax == 'traditional': self._translate_logits = TraditionalSoftmax()
-        elif softmax == 'stieltjes': self._translate_logits = StieltjesTransform()
-        elif softmax == 'adaptive': self._translate_logits = AdaptiveSoftmax()
-        else: raise ValueError('Error: Invalid softmax option.')
             
         self.kwargs = kwargs
 
     def forward(self, x_items, x_query, return_attn=False):
         # x_items (B, T, item_input_dim); x_query (B, 1)
         
-        x_query_unsqueezed = x_query.unsqueeze(-1) # (B, 1) -> (B, 1, 1)
-        h_items = self.psi_x(x_items)  # (B, T, d_emb)
-        h_query = self.psi_q(x_query_unsqueezed)  # (B, 1, d_emb)
+        x_query_unsqueezed = x_query.unsqueeze(-1)
+        h_items = self.psi_x(x_items)
+        h_query = self.psi_q(x_query_unsqueezed)
         
-        q = self.q_proj(h_query) # (B, 1, d_emb)
-        k = self.k_proj(h_items) # (B, T, d_emb)
-        v = self.v_proj(h_items) # (B, T, d_emb)
+        q = self.q_proj(h_query)
+        k = self.k_proj(h_items)
+        v = self.v_proj(h_items)
         
         attn_scores = torch.matmul(q, k.transpose(-2, -1))
 
-        if self._translation_name == 'traditional': #needed for trad
+        if self._translation_cls == SimplexMappingEnum.SOFTMAX:
             attn_scores *= k.size(-1) ** -0.5 
 
-        attn_weights = self._translate_logits.translate_logits(
-            attn_scores, 
-            dim=-1,
-            **self.kwargs
-        ) # (B, 1, T)
+        attn_weights = self._translate_logits.translate_logits(attn_scores, dim=-1,)
 
         z = torch.matmul(attn_weights, v)
-        z = z.squeeze(1) # (B, d_emb)
+        z = z.squeeze(1)
         
-        out_logits = self.phi(z) # (B, n_classes)
+        out_logits = self.phi(z)
 
         return (out_logits, attn_weights) if return_attn else out_logits
     
