@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from base_cls import ProbabilitySimplexMapping
+from .base_cls import ProbabilitySimplexMapping
 
 class AdaptiveSoftmax(ProbabilitySimplexMapping):
     """Adaptive temperature softmax.

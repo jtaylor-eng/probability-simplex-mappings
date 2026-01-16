@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 
-from base_cls import ProbabilitySimplexMapping
+from .base_cls import ProbabilitySimplexMapping
 
 class Softmax(ProbabilitySimplexMapping):
     """Just torch.nn.functional.softmax"""

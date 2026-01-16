@@ -1,6 +1,6 @@
 import torch
 
-from base_cls import ProbabilitySimplexMapping
+from .base_cls import ProbabilitySimplexMapping
 
 class StieltjesTransform(ProbabilitySimplexMapping):
     """Stieltjes transform as introduced, using binary search."""

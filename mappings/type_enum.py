@@ -1,10 +1,10 @@
 from enum import StrEnum
 
-from adaptative_temperature import AdaptiveSoftmax
-from alpha_entmax import AlphaEntmax
-from sotfmax import Softmax
-from sparsemax import Sparsemax
-from stieltjes import StieltjesTransform
+from .adaptative_temperature import AdaptiveSoftmax
+from .alpha_entmax import AlphaEntmax
+from .sotfmax import Softmax
+from .sparsemax import Sparsemax
+from .stieltjes import StieltjesTransform
 
 
 class SimplexMappingEnum(StrEnum):
