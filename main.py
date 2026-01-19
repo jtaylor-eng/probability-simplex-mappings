@@ -143,15 +143,15 @@ if __name__ == '__main__':
     # hyperparams
     d_emb = 128
     n_classes = 10
-    training_steps = 20000
+    training_steps = 2000
     log_every_steps = 500
-    batch_size = 128
+    batch_size = 64
     max_len_seq = 16
     min_len_seq = 5
     ood_len_seq = 128  # OOD validation
     lr = 0.001
     weight_decay = 0.001
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'mps'#'cuda' if torch.cuda.is_available() else 'cpu'
 
     # dataloaders
     item_input_dim = 1 + n_classes
@@ -183,7 +183,12 @@ if __name__ == '__main__':
     train_iter = iter(dataloader)  # step training
 
     # Test different simplex mappings
-    for logits_translation in [SimplexMappingEnum.softmax, SimplexMappingEnum.stieltjes, SimplexMappingEnum.adaptive_temperature]:
+    for logits_translation in [
+        SimplexMappingEnum.softmax,
+        SimplexMappingEnum.stieltjes,
+        SimplexMappingEnum.adaptive_temperature,
+
+    ]:
         start = time.time()
 
         # setup

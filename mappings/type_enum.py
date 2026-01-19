@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum
 
 from .adaptative_temperature import AdaptiveSoftmax
 from .alpha_entmax import AlphaEntmax
@@ -7,7 +7,7 @@ from .sparsemax import Sparsemax
 from .stieltjes import StieltjesTransform
 
 
-class SimplexMappingEnum(StrEnum):
+class SimplexMappingEnum(Enum):
     softmax=Softmax
     stieltjes=StieltjesTransform
     adaptive_temperature=AdaptiveSoftmax

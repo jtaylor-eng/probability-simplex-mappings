@@ -27,7 +27,13 @@ class MaxRetrievalModel(nn.Module):
     ):
         super().__init__()
         self._translation_cls = simplex_mapping.value
-        self._translate_logits = self._translation_cls(**kwargs)
+        # Only pass kwargs that the mapping's __init__ accepts
+        # Most mappings (Softmax, StieltjesTransform) don't accept kwargs in __init__
+        # AdaptiveSoftmax accepts 'coeffs' in __init__, so filter kwargs appropriately
+        init_kwargs = {}
+        if 'coeffs' in kwargs:
+            init_kwargs['coeffs'] = kwargs['coeffs']
+        self._translate_logits = self._translation_cls(**init_kwargs)
         self.d_emb = d_emb
         
         self.psi_x = MLP(item_input_dim, d_emb, d_emb) #items
@@ -57,7 +63,7 @@ class MaxRetrievalModel(nn.Module):
         if self._translation_cls == SimplexMappingEnum.softmax.value:
             attn_scores *= k.size(-1) ** -0.5 
 
-        attn_weights = self._translate_logits.translate_logits(attn_scores, dim=-1,)
+        attn_weights = self._translate_logits.translate_logits(attn_scores, dim=-1, **self.kwargs)
 
         z = torch.matmul(attn_weights, v)
         z = z.squeeze(1)
