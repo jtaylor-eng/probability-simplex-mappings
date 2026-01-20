@@ -43,13 +43,13 @@ def plot_max_retrieval_attention(
         
         priorities_t = priorities.unsqueeze(-1)
         classes_t = F.one_hot(classes, n_classes).float()
-        items = torch.cat([priorities_t, classes_t], dim=-1)  # (B, T, 1+C)
+        items = torch.cat([priorities_t, classes_t], dim=-1)
         
-        query_vec = torch.rand(batch_size, 1).to(device)  # (B, 1)
+        query_vec = torch.rand(batch_size, 1).to(device)
 
         with torch.no_grad():
             _, attn_weights = model(items, query_vec, return_attn=True)
-            attn_weights = attn_weights.squeeze(1)  # (B, 1, T) -> (B, T)
+            attn_weights = attn_weights.squeeze(1)
 
         # by priority
         sorted_value_indices = torch.argsort(priorities, dim=1)
@@ -135,6 +135,7 @@ def train_or_val(
     return total_loss / len(dataloader)
 
 
+
 if __name__ == '__main__':
     results_folder = './results/'
     if not os.path.isdir(results_folder):
@@ -143,12 +144,12 @@ if __name__ == '__main__':
     # hyperparams
     d_emb = 128
     n_classes = 10
-    training_steps = 2000
+    training_steps = 20000
     log_every_steps = 500
     batch_size = 64
     max_len_seq = 16
     min_len_seq = 5
-    ood_len_seq = 128  # OOD validation
+    ood_len_seq = 128
     lr = 0.001
     weight_decay = 0.001
     device = 'mps'#'cuda' if torch.cuda.is_available() else 'cpu'
@@ -157,41 +158,45 @@ if __name__ == '__main__':
     item_input_dim = 1 + n_classes
     len_train_dataset = training_steps * batch_size 
     len_val_dataset = 1024
+    data_dir = './data'
     
+    print("Loading datasets. Will generate if not found. ")
     dataloader = make_dataset(
         len_train_dataset, 
         max_len_seq, 
         n_classes, 
         min_len_seq, 
-        batch_size=batch_size
+        batch_size=batch_size,
+        data_dir=data_dir
     )
     dataloader_val_ID = make_dataset(
         len_val_dataset, 
         max_len_seq, 
         n_classes, 
         min_len_seq, 
-        batch_size=batch_size
+        batch_size=batch_size,
+        data_dir=data_dir
     )
     dataloader_val_OOD = make_dataset(
         len_val_dataset, 
         ood_len_seq, 
         n_classes, 
         min_len_seq, 
-        batch_size=batch_size
+        batch_size=batch_size,
+        data_dir=data_dir
     )
-    
-    train_iter = iter(dataloader)  # step training
+    train_iter = iter(dataloader)
 
-    # Test different simplex mappings
     for logits_translation in [
         SimplexMappingEnum.softmax,
         SimplexMappingEnum.stieltjes,
         SimplexMappingEnum.adaptive_temperature,
-
+        SimplexMappingEnum.alpha_entmax,
+        SimplexMappingEnum.sparsemax
     ]:
+        # setup
         start = time.time()
 
-        # setup
         model = MaxRetrievalModel(
             simplex_mapping=logits_translation,
             d_emb=d_emb,

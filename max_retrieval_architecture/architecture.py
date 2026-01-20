@@ -73,4 +73,4 @@ class MaxRetrievalModel(nn.Module):
         return (out_logits, attn_weights) if return_attn else out_logits
     
 if __name__ == '__main__':
-    print(SimplexMappingEnum) ; exit()
+    print(SimplexMappingEnum)
