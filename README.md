@@ -12,3 +12,7 @@
    - type_enum.py: Enum for mapping classes. Needed in max_retrieval_architecture/architecture.py
  * dataset_gen/
    - gen.py: Fills data/ with a torch dataset to be used for max retrieval training. Specify max_block_size.
+      - Note: ensure pathing to ../data correct
+
+# TODO
+ - argparser in main

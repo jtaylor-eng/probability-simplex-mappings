@@ -60,8 +60,7 @@ class MaxRetrievalModel(nn.Module):
         
         attn_scores = torch.matmul(q, k.transpose(-2, -1))
 
-        if self._translation_cls == SimplexMappingEnum.softmax.value:
-            attn_scores *= k.size(-1) ** -0.5 
+        attn_scores *= k.size(-1) ** -0.5 
 
         attn_weights = self._translate_logits.translate_logits(attn_scores, dim=-1, **self.kwargs)
 

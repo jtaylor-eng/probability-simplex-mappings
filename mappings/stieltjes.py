@@ -1,3 +1,4 @@
+# hardcoded q, does not length generalize
 import torch
 
 from .base_cls import ProbabilitySimplexMapping
@@ -24,7 +25,7 @@ class StieltjesTransform(ProbabilitySimplexMapping):
         logits,
         dim,
         q: float = 1.0,
-        num_iter: int = 32,
+        num_iter: int = 16,
         eps: float = 1e-9,
         **kwargs,
     ) -> torch.Tensor:

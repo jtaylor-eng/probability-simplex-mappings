@@ -1,4 +1,3 @@
-# Experiment running goes here
 import numpy as np
 import torch
 import torch.nn as nn
@@ -146,19 +145,19 @@ if __name__ == '__main__':
     n_classes = 10
     training_steps = 20000
     log_every_steps = 500
-    batch_size = 64
-    max_len_seq = 16
+    batch_size = 128
+    max_len_seq = 32
     min_len_seq = 5
     ood_len_seq = 128
     lr = 0.001
     weight_decay = 0.001
-    device = 'mps'#'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cuda' #if torch.cuda.is_available() else 'cpu'
 
     # dataloaders
     item_input_dim = 1 + n_classes
     len_train_dataset = training_steps * batch_size 
     len_val_dataset = 1024
-    data_dir = './data'
+    data_dir = '../data'
     
     print("Loading datasets. Will generate if not found. ")
     dataloader = make_dataset(
@@ -188,8 +187,9 @@ if __name__ == '__main__':
     train_iter = iter(dataloader)
 
     for logits_translation in [
+        SimplexMappingEnum.stieltjes_learnable_q,
+        # SimplexMappingEnum.stieltjes, #bad
         SimplexMappingEnum.softmax,
-        SimplexMappingEnum.stieltjes,
         SimplexMappingEnum.adaptive_temperature,
         SimplexMappingEnum.alpha_entmax,
         SimplexMappingEnum.sparsemax
@@ -203,14 +203,15 @@ if __name__ == '__main__':
             n_classes=n_classes,
             item_input_dim=item_input_dim,
             query_input_dim=1,
-            q=8  # for stieltjes
+            q=4,
         ).to(device)
 
-        optimizer = optim.AdamW(
-            model.parameters(), 
-            lr=lr, 
-            weight_decay=weight_decay
-        )
+        params = [
+            {'params': [p for n, p in model.named_parameters() if 'raw_q' not in n]},
+            {'params': [model._translate_logits.raw_q], 'lr': lr * 0.1} #slow q updates
+        ] if logits_translation == SimplexMappingEnum.stieltjes_learnable_q else model.parameters()
+
+        optimizer = optim.AdamW(params, lr=lr, weight_decay=weight_decay)
         loss_fn = nn.CrossEntropyLoss()
 
         # step training
@@ -230,15 +231,16 @@ if __name__ == '__main__':
             out_logits = model(items, queries)
             loss = loss_fn(out_logits, targets)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             
             # log
             if step > 0 and (step % log_every_steps == 0 or step == training_steps - 1):
                 val_ID_loss = train_or_val(
-                    model, 
+                    model,
                     dataloader_val_ID, 
-                    loss_fn, 
-                    device, 
+                    loss_fn,
+                    device,
                     train_mode=False
                 )
                 val_OOD_loss = train_or_val(
