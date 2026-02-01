@@ -11,9 +11,9 @@ from tqdm import tqdm
 import time
 import os
 
-from simplex_mappings.max_retrieval_architecture.architecture import MaxRetrievalModel
-from simplex_mappings.mappings.type_enum import SimplexMappingEnum
-from simplex_mappings.dataset_gen.gen import make_dataset
+from asentmax_comp.max_retrieval_architecture.architecture import MaxRetrievalModel
+from asentmax_comp.mappings.type_enum import SimplexMappingEnum
+from asentmax_comp.dataset_gen.gen import make_dataset
 
 
 def plot_max_retrieval_attention(
@@ -133,7 +133,37 @@ def train_or_val(
                 
     return total_loss / len(dataloader)
 
-
+experiments = [
+    #Baseline
+    {'class': SimplexMappingEnum.softmax, 'kwargs': {}},
+    {'class': SimplexMappingEnum.adaptive_temperature},
+    #Softmax variants
+    {'class': SimplexMappingEnum.softmax, 'kwargs': {'temperature': 'root_d'}},
+    {'class': SimplexMappingEnum.softmax, 'kwargs': {'temperature': 0.1}},
+    {'class': SimplexMappingEnum.softmax, 'kwargs': {'temperature': 0.0004}},
+    {'class': SimplexMappingEnum.scalable_softmax, 'kwargs': {}},
+    {'class': SimplexMappingEnum.topk_attn, 'kwargs': {'k': 2}},
+    {'class': SimplexMappingEnum.topk_attn, 'kwargs': {'k': 4}},
+    #Alpha Entmax
+    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 1.5}}, 
+    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 2}},
+    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 4}},
+    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 16}},
+    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 32}},
+    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 65}},
+    #Adaptive Scalable Entmax
+    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 1.0}},
+    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 2.0}},
+    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 3.0}},
+    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 4.0}},
+    #Stieltjes
+    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 1}}
+    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 2}}
+    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 4}}
+    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 8}}
+    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 10}}
+    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 16}}
+]
 
 if __name__ == '__main__':
     results_folder = './results/'
@@ -146,7 +176,7 @@ if __name__ == '__main__':
     training_steps = 20000
     log_every_steps = 500
     batch_size = 128
-    max_len_seq = 32
+    max_len_seq = 16
     min_len_seq = 5
     ood_len_seq = 128
     lr = 0.001
@@ -187,8 +217,7 @@ if __name__ == '__main__':
     train_iter = iter(dataloader)
 
     for logits_translation in [
-        SimplexMappingEnum.stieltjes_learnable_q,
-        # SimplexMappingEnum.stieltjes, #bad
+        SimplexMappingEnum.stieltjes,
         SimplexMappingEnum.softmax,
         SimplexMappingEnum.adaptive_temperature,
         SimplexMappingEnum.alpha_entmax,
