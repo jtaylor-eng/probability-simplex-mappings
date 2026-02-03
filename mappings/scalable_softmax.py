@@ -8,7 +8,6 @@ from .base_cls import ProbabilitySimplexMapping
 class ScalableSoftmax(ProbabilitySimplexMapping):
     def __init__(self, beta_init=1.0):
         super().__init__()
-        # learn beta ≥ 0
         self.log_beta = nn.Parameter(
             torch.tensor(beta_init).log()
         )

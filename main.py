@@ -1,309 +1,210 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, List
+from tqdm import tqdm
+
 import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.optim import Optimizer
-from torch.utils.data import DataLoader
-from typing import List, Optional
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import time
-import os
 
 from asentmax_comp.max_retrieval_architecture.architecture import MaxRetrievalModel
 from asentmax_comp.mappings.type_enum import SimplexMappingEnum
-from asentmax_comp.dataset_gen.gen import make_dataset
 
 
-def plot_max_retrieval_attention(
-    model, 
-    device, 
-    save_path, 
-    n_classes, 
-    item_input_dim, 
-    start_len=16, 
-    num_doubles=8, 
-    batch_size=32
-):
-    """
-    Plots attention maps like Figure 2 from the paper [cite: 108-110].
-    """
-    model.eval()
-    fig, axes = plt.subplots(1, num_doubles, figsize=(15, 5), sharey=True)
-    fig.subplots_adjust(wspace=0.1)
-
-    current_len = start_len
-    for i in range(num_doubles):
-        ax = axes[i]
-        
-        priorities = torch.rand(batch_size, current_len).to(device)
-        classes = torch.randint(0, n_classes, (batch_size, current_len)).to(device)
-        
-        priorities_t = priorities.unsqueeze(-1)
-        classes_t = F.one_hot(classes, n_classes).float()
-        items = torch.cat([priorities_t, classes_t], dim=-1)
-        
-        query_vec = torch.rand(batch_size, 1).to(device)
-
-        with torch.no_grad():
-            _, attn_weights = model(items, query_vec, return_attn=True)
-            attn_weights = attn_weights.squeeze(1)
-
-        # by priority
-        sorted_value_indices = torch.argsort(priorities, dim=1)
-        top_16_value_indices = sorted_value_indices[:, -16:]
-        top_k_weights = torch.gather(attn_weights, 1, top_16_value_indices)
-        
-        ax.imshow(top_k_weights.cpu().numpy(), cmap='Blues', aspect='auto', vmin=0, vmax=1)
-        ax.set_title(f"{current_len}", fontsize=8)
-        ax.set_xticks([])
-        
-        current_len *= 2
-
-    plt.savefig(f'{save_path}.png')
-    plt.close()
+@dataclass(frozen=True)
+class Experiment:
+    name: str
+    mapping: SimplexMappingEnum
+    mapping_kwargs: Dict
 
 
-def plot_learning_curve(
-    train_losses: List[float],
-    val_ID_losses: List[float],
-    val_OOD_losses: List[float],
-    train_time: float,
-    name: str,
-    save_path: str,
-    log_every_steps: int
-):
-    steps_range = list(range(1, len(train_losses) + 1))
-    steps_ticks = [s * log_every_steps for s in steps_range]
+ID_LEN: int = 16
+OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
+ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
-    plt.figure()
-    plt.plot(steps_ticks, train_losses, 'b-o', label='Training Loss')
-    plt.plot(steps_ticks, val_ID_losses, 'g-o', label='In-Distribution Val Loss')
-    plt.plot(steps_ticks, val_OOD_losses, 'r-o', label='OOD Val Loss')
-    plt.title(f'Learning curves for {name} | trained for {train_time:.2f} seconds.')
-    plt.legend()
-    plt.xlabel('Training Steps')
-    plt.ylabel('Loss (normalized)')
-    plt.grid(True)
-    plt.savefig(f'{save_path}.png')
-    plt.close()
-
-
-def train_or_val(
-    model: nn.Module,
-    dataloader: DataLoader,
-    loss_fn: nn.Module,
-    device: str,
-    train_mode: bool = True,
-    optim: Optional[Optimizer] = None,
-) -> float:
-    """Run training or validation on model given other args."""
-    total_loss = 0.0
-    
-    if train_mode:
-        assert optim, 'need optimizer for train mode'
-        model.train()
-        
-        for items, queries, targets in dataloader:
-            items = items.to(device)
-            queries = queries.to(device)
-            targets = targets.to(device)
-            
-            optim.zero_grad()
-            
-            out_logits = model(items, queries)
-            loss = loss_fn(out_logits, targets)
-            loss.backward()
-            optim.step()
-            
-            total_loss += loss.item()
-    
-    else:
-        model.eval()
-        with torch.no_grad(): 
-            for items, queries, targets in dataloader:
-                items = items.to(device)
-                queries = queries.to(device)
-                targets = targets.to(device)
-                
-                out_logits = model(items, queries)
-                loss = loss_fn(out_logits, targets)
-                total_loss += loss.item()
-                
-    return total_loss / len(dataloader)
-
-experiments = [
-    #Baseline
-    {'class': SimplexMappingEnum.softmax, 'kwargs': {}},
-    {'class': SimplexMappingEnum.adaptive_temperature},
-    #Softmax variants
-    {'class': SimplexMappingEnum.softmax, 'kwargs': {'temperature': 'root_d'}},
-    {'class': SimplexMappingEnum.softmax, 'kwargs': {'temperature': 0.1}},
-    {'class': SimplexMappingEnum.softmax, 'kwargs': {'temperature': 0.0004}},
-    {'class': SimplexMappingEnum.scalable_softmax, 'kwargs': {}},
-    {'class': SimplexMappingEnum.topk_attn, 'kwargs': {'k': 2}},
-    {'class': SimplexMappingEnum.topk_attn, 'kwargs': {'k': 4}},
-    #Alpha Entmax
-    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 1.5}}, 
-    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 2}},
-    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 4}},
-    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 16}},
-    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 32}},
-    {'class': SimplexMappingEnum.alpha_entmax, 'kwargs': {'alpha': 65}},
-    #Adaptive Scalable Entmax
-    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 1.0}},
-    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 2.0}},
-    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 3.0}},
-    {'class': SimplexMappingEnum.as_entmax, 'kwargs': {'gamma': 4.0}},
-    #Stieltjes
-    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 1}}
-    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 2}}
-    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 4}}
-    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 8}}
-    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 10}}
-    {'class': SimplexMappingEnum.stieltjes, 'kwargs': {'q': 16}}
+# Table 8 rows (names match the prompt).
+EXPERIMENTS: List[Experiment] = [
+    Experiment("Softmax Veličković et al. (2025)", SimplexMappingEnum.softmax, {}),
+    Experiment("Adapt. temp. Veličković et al. (2025)", SimplexMappingEnum.adaptive_temperature, {}),
+    # NOTE: for explicit θ experiments, avoid also applying dot-product scaling in the model.
+    # Otherwise you effectively scale twice (e.g. /sqrt(d) and then /θ).
+    Experiment("Softmax θ = √d", SimplexMappingEnum.softmax, {"temperature": "root_d", "attn_score_scale": "none"}),
+    Experiment("Softmax θ = 0.1", SimplexMappingEnum.softmax, {"temperature": 0.1, "attn_score_scale": "none"}),
+    Experiment("Softmax θ = 0.0004", SimplexMappingEnum.softmax, {"temperature": 0.0004, "attn_score_scale": "none"}),
+    Experiment("SSMax", SimplexMappingEnum.scalable_softmax, {}),
+    Experiment("Top-K, K = 2", SimplexMappingEnum.topk_attn, {"k": 2}),
+    Experiment("Top-K, K = 4", SimplexMappingEnum.topk_attn, {"k": 4}),
+    Experiment("Entmax α = 1.5", SimplexMappingEnum.alpha_entmax, {"alpha": 1.5}),
+    Experiment("Entmax α = 2", SimplexMappingEnum.alpha_entmax, {"alpha": 2.0}),
+    Experiment("Entmax α = 4", SimplexMappingEnum.alpha_entmax, {"alpha": 4.0}),
+    Experiment("Entmax α = 16", SimplexMappingEnum.alpha_entmax, {"alpha": 16.0}),
+    Experiment("Entmax α = 32", SimplexMappingEnum.alpha_entmax, {"alpha": 32.0}),
+    Experiment("Entmax α = 64", SimplexMappingEnum.alpha_entmax, {"alpha": 64.0}),
+    Experiment("ASEntmax, α = 1.5, βlearn, γ = 1", SimplexMappingEnum.as_entmax, {"gamma": 1.0, "delta": 1.0}),
+    Experiment("ASEntmax, α = 1.5, βlearn, γ = 2", SimplexMappingEnum.as_entmax, {"gamma": 2.0, "delta": 1.0}),
+    Experiment("ASEntmax, α = 1.5, βlearn, γ = 3", SimplexMappingEnum.as_entmax, {"gamma": 3.0, "delta": 1.0}),
+    Experiment("ASEntmax, α = 1.5, βlearn, γ = 4", SimplexMappingEnum.as_entmax, {"gamma": 4.0, "delta": 1.0}),
 ]
 
-if __name__ == '__main__':
-    results_folder = './results/'
-    if not os.path.isdir(results_folder):
-        os.mkdir(results_folder)
 
-    # hyperparams
+def _set_seeds(seed: int) -> None:
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def sample_max_retrieval_batch(
+    batch_size: int,
+    seq_len: int,
+    n_classes: int,
+    device: str,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Returns (items, queries, targets):
+    - items: (B, T, 1 + n_classes)  [priority + one-hot class]
+    - queries: (B, 1)
+    - targets: (B,)  (class index of the max-priority item)
+    """
+    priorities = torch.rand(batch_size, seq_len, device=device)
+    classes = torch.randint(0, n_classes, (batch_size, seq_len), device=device)
+
+    argmax_idx = priorities.argmax(dim=1)  # (B,)
+    targets = classes.gather(1, argmax_idx.unsqueeze(1)).squeeze(1).long()  # (B,)
+
+    priorities_t = priorities.unsqueeze(-1)  # (B, T, 1)
+    classes_t = F.one_hot(classes, n_classes).to(dtype=torch.float32)  # (B, T, C)
+    items = torch.cat([priorities_t, classes_t], dim=-1)  # (B, T, 1+C)
+
+    queries = torch.rand(batch_size, 1, device=device)
+    return items, queries, targets
+
+
+def train_max_retrieval(
+    model: nn.Module,
+    *,
+    seq_len: int,
+    n_classes: int,
+    device: str,
+    training_steps: int,
+    batch_size: int,
+    lr: float,
+    weight_decay: float,
+) -> None:
+    model.train()
+    opt = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    loss_fn = nn.CrossEntropyLoss()
+
+    for _ in range(training_steps):
+        items, queries, targets = sample_max_retrieval_batch(
+            batch_size=batch_size,
+            seq_len=seq_len,
+            n_classes=n_classes,
+            device=device,
+        )
+        opt.zero_grad(set_to_none=True)
+        logits = model(items, queries)
+        loss = loss_fn(logits, targets)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        opt.step()
+
+
+@torch.no_grad()
+def eval_accuracy(
+    model: nn.Module,
+    *,
+    seq_len: int,
+    n_classes: int,
+    device: str,
+    eval_samples: int,
+    batch_size: int,
+) -> float:
+    model.eval()
+
+    correct = 0
+    total = 0
+    steps = int(np.ceil(eval_samples / batch_size))
+
+    for _ in range(steps):
+        items, queries, targets = sample_max_retrieval_batch(
+            batch_size=batch_size,
+            seq_len=seq_len,
+            n_classes=n_classes,
+            device=device,
+        )
+        logits = model(items, queries)
+        preds = logits.argmax(dim=-1)
+        correct += (preds == targets).sum().item()
+        total += targets.numel()
+
+    return 100.0 * correct / max(total, 1)
+
+
+def run_table8() -> None:
+    # Defaults (you can tweak to match the paper’s exact config if needed).
     d_emb = 128
     n_classes = 10
-    training_steps = 20000
-    log_every_steps = 500
-    batch_size = 128
-    max_len_seq = 16
-    min_len_seq = 5
-    ood_len_seq = 128
-    lr = 0.001
-    weight_decay = 0.001
-    device = 'cuda' #if torch.cuda.is_available() else 'cpu'
-
-    # dataloaders
     item_input_dim = 1 + n_classes
-    len_train_dataset = training_steps * batch_size 
-    len_val_dataset = 1024
-    data_dir = '../data'
-    
-    print("Loading datasets. Will generate if not found. ")
-    dataloader = make_dataset(
-        len_train_dataset, 
-        max_len_seq, 
-        n_classes, 
-        min_len_seq, 
-        batch_size=batch_size,
-        data_dir=data_dir
-    )
-    dataloader_val_ID = make_dataset(
-        len_val_dataset, 
-        max_len_seq, 
-        n_classes, 
-        min_len_seq, 
-        batch_size=batch_size,
-        data_dir=data_dir
-    )
-    dataloader_val_OOD = make_dataset(
-        len_val_dataset, 
-        ood_len_seq, 
-        n_classes, 
-        min_len_seq, 
-        batch_size=batch_size,
-        data_dir=data_dir
-    )
-    train_iter = iter(dataloader)
 
-    for logits_translation in [
-        SimplexMappingEnum.stieltjes,
-        SimplexMappingEnum.softmax,
-        SimplexMappingEnum.adaptive_temperature,
-        SimplexMappingEnum.alpha_entmax,
-        SimplexMappingEnum.sparsemax
-    ]:
-        # setup
-        start = time.time()
+    training_steps = 20_000
+    batch_size = 128
+    lr = 1e-3
+    weight_decay = 1e-3
+
+    eval_samples = 4096
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    results: Dict[str, List[float]] = {}
+    for exp in tqdm(EXPERIMENTS):
+        _set_seeds(0)
 
         model = MaxRetrievalModel(
-            simplex_mapping=logits_translation,
+            simplex_mapping=exp.mapping,
             d_emb=d_emb,
             n_classes=n_classes,
             item_input_dim=item_input_dim,
             query_input_dim=1,
-            q=4,
+            attn_score_scale="inv_sqrt_d",
+            **exp.mapping_kwargs,
         ).to(device)
 
-        params = [
-            {'params': [p for n, p in model.named_parameters() if 'raw_q' not in n]},
-            {'params': [model._translate_logits.raw_q], 'lr': lr * 0.1} #slow q updates
-        ] if logits_translation == SimplexMappingEnum.stieltjes_learnable_q else model.parameters()
-
-        optimizer = optim.AdamW(params, lr=lr, weight_decay=weight_decay)
-        loss_fn = nn.CrossEntropyLoss()
-
-        # step training
-        train_losses, val_ID_losses, val_OOD_losses = [], [], []
-        
-        for step in tqdm(range(training_steps), desc=f"Training {logits_translation.name}"):
-            try:
-                items, queries, targets = next(train_iter)
-            except StopIteration:
-                train_iter = iter(dataloader)
-                items, queries, targets = next(train_iter)
-            
-            items, queries, targets = items.to(device), queries.to(device), targets.to(device)
-            
-            model.train()
-            optimizer.zero_grad()
-            out_logits = model(items, queries)
-            loss = loss_fn(out_logits, targets)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
-            
-            # log
-            if step > 0 and (step % log_every_steps == 0 or step == training_steps - 1):
-                val_ID_loss = train_or_val(
-                    model,
-                    dataloader_val_ID, 
-                    loss_fn,
-                    device,
-                    train_mode=False
-                )
-                val_OOD_loss = train_or_val(
-                    model, 
-                    dataloader_val_OOD, 
-                    loss_fn, 
-                    device, 
-                    train_mode=False
-                )
-                
-                train_losses.append(loss.item())
-                val_ID_losses.append(val_ID_loss)
-                val_OOD_losses.append(val_OOD_loss)
-                
-                print(f'\nStep {step} | Train Loss: {train_losses[-1]:.4f} | Val Loss (ID): {val_ID_losses[-1]:.4f} | Val Loss (OOD): {val_OOD_losses[-1]:.4f}')
-        
-        # plotting
-        time_train = time.time() - start
-        print(f'Time to train using {logits_translation.name}: {time_train}')
-        
-        plot_max_retrieval_attention(
-            model=model,
-            device=device,
-            save_path=results_folder + logits_translation.name,
+        train_max_retrieval(
+            model,
+            seq_len=ID_LEN,
             n_classes=n_classes,
-            item_input_dim=item_input_dim
+            device=device,
+            training_steps=training_steps,
+            batch_size=batch_size,
+            lr=lr,
+            weight_decay=weight_decay,
         )
 
-        plot_learning_curve(
-            train_losses=train_losses,
-            val_ID_losses=val_ID_losses,
-            val_OOD_losses=val_OOD_losses,
-            train_time=time_train,
-            name=logits_translation.name,
-            save_path=results_folder + f'{logits_translation.name}_learning_curves',
-            log_every_steps=log_every_steps
-        )
+        row: List[float] = []
+        for L in ALL_LENS:
+            row.append(
+                eval_accuracy(
+                    model,
+                    seq_len=L,
+                    n_classes=n_classes,
+                    device=device,
+                    eval_samples=eval_samples,
+                    batch_size=batch_size,
+                )
+            )
+        results[exp.name] = row
+
+    # Table-like TSV output (easy to paste into a spreadsheet).
+    header = ["Model"] + [str(L) for L in ALL_LENS]
+    print("\t".join(header))
+    for name, row in results.items():
+        print("\t".join([name] + [f"{x:.1f}" for x in row]))
+
+
+if __name__ == "__main__":
+    run_table8()

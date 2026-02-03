@@ -1,16 +1,26 @@
-# hardcoded q, does not length generalize
 import torch
 
 from .base_cls import ProbabilitySimplexMapping
 
 class StieltjesTransform(ProbabilitySimplexMapping):
     """Stieltjes transform as introduced, using binary search."""
-    def _line_search_bs(self, num_iter, shifted_logits, eps, q, dim, lb, ub):
-        for _ in range(num_iter):
+    def __init__(
+        self,
+        q: float = 1.0,
+        num_iter: int = 16,
+        eps: float = 1e-9
+    ):
+        super().__init__()
+        self._q = q
+        self._num_iter = num_iter
+        self._eps = eps
+
+    def _line_search_bs(self, shifted_logits, dim, lb, ub):
+        for _ in range(self._num_iter):
             mid = (lb + ub) / 2.0
             
             prob_sum = torch.sum(
-                torch.pow((mid - shifted_logits).clamp(min=eps), -q),
+                torch.pow((mid - shifted_logits).clamp(min=self._eps), -self._q),
                 dim=dim,
                 keepdim=True
             ) - 1
@@ -24,9 +34,6 @@ class StieltjesTransform(ProbabilitySimplexMapping):
         self,
         logits,
         dim,
-        q: float = 1.0,
-        num_iter: int = 16,
-        eps: float = 1e-9,
         **kwargs,
     ) -> torch.Tensor:
         """Calculates 1 / (lambda_q - x_i)^q"""
@@ -36,14 +43,11 @@ class StieltjesTransform(ProbabilitySimplexMapping):
         x_max = torch.max(logits, dim=dim, keepdim=True).values
         x_i = logits - x_max
 
-        lb = torch.full_like(x_max, eps)
-        ub = torch.full_like(x_max, logits.shape[dim] ** (1.0/q))
+        lb = torch.full_like(x_max, self._eps)
+        ub = torch.full_like(x_max, logits.shape[dim] ** (1.0/ self._q))
 
         lb, ub = self._line_search_bs(
-            num_iter=num_iter,
             shifted_logits=x_i,
-            eps=eps,
-            q=q,
             dim=dim,
             lb=lb,
             ub=ub
@@ -51,4 +55,4 @@ class StieltjesTransform(ProbabilitySimplexMapping):
         lambda_1 = (lb + ub) / 2.0
         
         # 1 / (lambda_q - x_i)^q
-        return torch.pow((lambda_1 - x_i).clamp(min=eps), -q)
+        return torch.pow((lambda_1 - x_i).clamp(min=self._eps), -self._q)

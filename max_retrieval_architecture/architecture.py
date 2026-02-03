@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import inspect
 from typing import Literal, Optional, Callable, List
 
 from asentmax_comp.mappings.type_enum import SimplexMappingEnum
@@ -23,18 +24,33 @@ class MaxRetrievalModel(nn.Module):
         n_classes: int,
         item_input_dim: int,
         query_input_dim: int = 1,
-        **kwargs #additional args to be used in construction simplex mapping obj
+        attn_score_scale: Literal["inv_sqrt_d", "none"] = "inv_sqrt_d",
+        **kwargs,  # mapping kwargs (init + forward)
     ):
         super().__init__()
         self._translation_cls = simplex_mapping.value
-        # Only pass kwargs that the mapping's __init__ accepts
-        # Most mappings (Softmax, StieltjesTransform) don't accept kwargs in __init__
-        # AdaptiveSoftmax accepts 'coeffs' in __init__, so filter kwargs appropriately
-        init_kwargs = {}
-        if 'coeffs' in kwargs:
-            init_kwargs['coeffs'] = kwargs['coeffs']
-        self._translate_logits = self._translation_cls(**init_kwargs)
+        self.attn_score_scale = attn_score_scale
         self.d_emb = d_emb
+
+        # Build init kwargs by inspecting the mapping's __init__ signature.
+        init_kwargs: dict = {}
+        sig = inspect.signature(self._translation_cls.__init__)
+        init_param_names = {
+            p.name
+            for p in sig.parameters.values()
+            if p.name not in {"self", "args", "kwargs"}
+        }
+
+        # Provide common defaults for methods that require model dims.
+        if simplex_mapping == SimplexMappingEnum.as_entmax:
+            kwargs.setdefault("d_model", d_emb)
+            kwargs.setdefault("n_heads", 1)
+
+        for k, v in kwargs.items():
+            if k in init_param_names:
+                init_kwargs[k] = v
+
+        self._translate_logits = self._translation_cls(**init_kwargs)
         
         self.psi_x = MLP(item_input_dim, d_emb, d_emb) #items
         self.psi_q = MLP(query_input_dim, d_emb, d_emb) #query
@@ -60,9 +76,28 @@ class MaxRetrievalModel(nn.Module):
         
         attn_scores = torch.matmul(q, k.transpose(-2, -1))
 
-        attn_scores *= k.size(-1) ** -0.5 
+        if self.attn_score_scale == "inv_sqrt_d":
+            attn_scores = attn_scores * (self.d_emb ** -0.5)
+        elif self.attn_score_scale == "none":
+            pass
+        else:
+            raise ValueError(f"Unknown attn_score_scale={self.attn_score_scale!r}")
 
-        attn_weights = self._translate_logits.translate_logits(attn_scores, dim=-1, **self.kwargs)
+        # Always pass `queries` and `d_emb` for mappings that need them.
+        call_kwargs = dict(self.kwargs)
+        # Avoid passing duplicate keywords (e.g., if d_model is present in mapping kwargs).
+        call_kwargs.pop("d_model", None)
+        call_kwargs.pop("d_emb", None)
+        call_kwargs.pop("queries", None)
+
+        attn_weights = self._translate_logits.translate_logits(
+            attn_scores,
+            dim=-1,
+            queries=q,
+            d_emb=self.d_emb,
+            d_model=self.d_emb,
+            **call_kwargs,
+        )
 
         z = torch.matmul(attn_weights, v)
         z = z.squeeze(1)

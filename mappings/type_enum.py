@@ -2,7 +2,7 @@ from enum import Enum
 
 from .adaptative_temperature import AdaptiveSoftmax
 from .alpha_entmax import AlphaEntmax
-from .sotfmax import Softmax
+from .softmax import Softmax
 from .sparsemax import Sparsemax
 from .stieltjes import StieltjesTransform
 from .stieltjes_learnable_q import LearnableStieltjes
