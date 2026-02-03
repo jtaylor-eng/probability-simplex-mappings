@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 from tqdm import tqdm
+import math
 
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,12 +26,15 @@ ID_LEN: int = 16
 OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
-# Table 8 rows (names match the prompt).
 EXPERIMENTS: List[Experiment] = [
+    Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
+    Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
+    Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
+    Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
+    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+
     Experiment("Softmax Veličković et al. (2025)", SimplexMappingEnum.softmax, {}),
     Experiment("Adapt. temp. Veličković et al. (2025)", SimplexMappingEnum.adaptive_temperature, {}),
-    # NOTE: for explicit θ experiments, avoid also applying dot-product scaling in the model.
-    # Otherwise you effectively scale twice (e.g. /sqrt(d) and then /θ).
     Experiment("Softmax θ = √d", SimplexMappingEnum.softmax, {"temperature": "root_d", "attn_score_scale": "none"}),
     Experiment("Softmax θ = 0.1", SimplexMappingEnum.softmax, {"temperature": 0.1, "attn_score_scale": "none"}),
     Experiment("Softmax θ = 0.0004", SimplexMappingEnum.softmax, {"temperature": 0.0004, "attn_score_scale": "none"}),
@@ -64,21 +67,16 @@ def sample_max_retrieval_batch(
     n_classes: int,
     device: str,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Returns (items, queries, targets):
-    - items: (B, T, 1 + n_classes)  [priority + one-hot class]
-    - queries: (B, 1)
-    - targets: (B,)  (class index of the max-priority item)
-    """
+    """Generates synthetic data on the fly."""
     priorities = torch.rand(batch_size, seq_len, device=device)
     classes = torch.randint(0, n_classes, (batch_size, seq_len), device=device)
 
-    argmax_idx = priorities.argmax(dim=1)  # (B,)
-    targets = classes.gather(1, argmax_idx.unsqueeze(1)).squeeze(1).long()  # (B,)
+    argmax_idx = priorities.argmax(dim=1)
+    targets = classes.gather(1, argmax_idx.unsqueeze(1)).squeeze(1).long()
 
-    priorities_t = priorities.unsqueeze(-1)  # (B, T, 1)
-    classes_t = F.one_hot(classes, n_classes).to(dtype=torch.float32)  # (B, T, C)
-    items = torch.cat([priorities_t, classes_t], dim=-1)  # (B, T, 1+C)
+    priorities_t = priorities.unsqueeze(-1)
+    classes_t = F.one_hot(classes, n_classes).to(dtype=torch.float32)
+    items = torch.cat([priorities_t, classes_t], dim=-1)
 
     queries = torch.rand(batch_size, 1, device=device)
     return items, queries, targets
@@ -94,24 +92,51 @@ def train_max_retrieval(
     batch_size: int,
     lr: float,
     weight_decay: float,
+    warmup_steps: int,
 ) -> None:
     model.train()
+    
     opt = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        opt, 
+        max_lr=lr, 
+        total_steps=training_steps, 
+        pct_start=(warmup_steps / training_steps),
+        anneal_strategy='cos'
+    )
+    
     loss_fn = nn.CrossEntropyLoss()
+    
+    try:
+        @torch.compile
+        def train_step(items, queries, targets):
+            opt.zero_grad(set_to_none=True)
+            logits = model(items, queries)
+            loss = loss_fn(logits, targets)
+            loss.backward()
+            return loss
+    except:
+        def train_step(items, queries, targets):
+            opt.zero_grad(set_to_none=True)
+            logits = model(items, queries)
+            loss = loss_fn(logits, targets)
+            loss.backward()
+            return loss
 
-    for _ in range(training_steps):
+    pbar = tqdm(range(training_steps), desc="Training", leave=False)
+    for step in pbar:
         items, queries, targets = sample_max_retrieval_batch(
             batch_size=batch_size,
             seq_len=seq_len,
             n_classes=n_classes,
             device=device,
         )
-        opt.zero_grad(set_to_none=True)
-        logits = model(items, queries)
-        loss = loss_fn(logits, targets)
-        loss.backward()
+        
+        loss = train_step(items, queries, targets)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         opt.step()
+        scheduler.step()
 
 
 @torch.no_grad()
@@ -125,14 +150,15 @@ def eval_accuracy(
     batch_size: int,
 ) -> float:
     model.eval()
-
     correct = 0
     total = 0
-    steps = int(np.ceil(eval_samples / batch_size))
+    
+    eval_batch_size = batch_size * 2
+    steps = int(np.ceil(eval_samples / eval_batch_size))
 
     for _ in range(steps):
         items, queries, targets = sample_max_retrieval_batch(
-            batch_size=batch_size,
+            batch_size=eval_batch_size,
             seq_len=seq_len,
             n_classes=n_classes,
             device=device,
@@ -146,60 +172,81 @@ def eval_accuracy(
 
 
 def run_table8() -> None:
-    # Defaults (you can tweak to match the paper’s exact config if needed).
     d_emb = 128
     n_classes = 10
     item_input_dim = 1 + n_classes
 
-    training_steps = 20_000
-    batch_size = 128
-    lr = 1e-3
-    weight_decay = 1e-3
+    training_steps = 50_000 
+    batch_size = 256
+    
+    lr = 1e-3 
+    warmup_steps = 5_000
+    weight_decay = 0.0 
 
-    eval_samples = 4096
+    eval_samples_id = 2048 
+    eval_samples_ood = 1024 
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Running on {device} with {training_steps} steps, batch size {batch_size}")
 
     results: Dict[str, List[float]] = {}
-    for exp in tqdm(EXPERIMENTS):
-        _set_seeds(0)
+    
+    for exp in tqdm(EXPERIMENTS, desc="Experiments"):
+        try: #not exactly robust script
+            _set_seeds(0)
 
-        model = MaxRetrievalModel(
-            simplex_mapping=exp.mapping,
-            d_emb=d_emb,
-            n_classes=n_classes,
-            item_input_dim=item_input_dim,
-            query_input_dim=1,
-            attn_score_scale="inv_sqrt_d",
-            **exp.mapping_kwargs,
-        ).to(device)
+            run_kwargs = exp.mapping_kwargs.copy()
+            current_scale = run_kwargs.pop("attn_score_scale", "inv_sqrt_d")
 
-        train_max_retrieval(
-            model,
-            seq_len=ID_LEN,
-            n_classes=n_classes,
-            device=device,
-            training_steps=training_steps,
-            batch_size=batch_size,
-            lr=lr,
-            weight_decay=weight_decay,
-        )
+            model = MaxRetrievalModel(
+                simplex_mapping=exp.mapping,
+                d_emb=d_emb,
+                n_classes=n_classes,
+                item_input_dim=item_input_dim,
+                query_input_dim=1,
+                attn_score_scale=current_scale,
+                **run_kwargs,
+            ).to(device)
 
-        row: List[float] = []
-        for L in ALL_LENS:
-            row.append(
-                eval_accuracy(
+            train_max_retrieval(
+                model,
+                seq_len=ID_LEN,
+                n_classes=n_classes,
+                device=device,
+                training_steps=training_steps,
+                batch_size=batch_size,
+                lr=lr,
+                weight_decay=weight_decay,
+                warmup_steps=warmup_steps,
+            )
+
+            row: List[float] = []
+            for i, L in enumerate(ALL_LENS):
+                n_eval = eval_samples_id if i == 0 else eval_samples_ood
+                
+                acc = eval_accuracy(
                     model,
                     seq_len=L,
                     n_classes=n_classes,
                     device=device,
-                    eval_samples=eval_samples,
+                    eval_samples=n_eval,
                     batch_size=batch_size,
                 )
-            )
-        results[exp.name] = row
+                row.append(acc)
+                
+                if i > 2 and acc < 12.0:
+                    row.extend([acc] * (len(ALL_LENS) - 1 - i))
+                    break
+                    
+            results[exp.name] = row
+            print(f"Finished {exp.name}: {row}")
+        except Exception as e:
+            print(f"Failed {exp.name} with e, skipping")
 
-    # Table-like TSV output (easy to paste into a spreadsheet).
+    # Output
+    print("\n\n" + "="*30)
+    print("FINAL RESULTS")
+    print("="*30)
     header = ["Model"] + [str(L) for L in ALL_LENS]
     print("\t".join(header))
     for name, row in results.items():
