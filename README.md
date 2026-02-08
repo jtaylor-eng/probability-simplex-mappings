@@ -16,3 +16,19 @@
 
 # TODO
  - argparser in main
+
+# Notes:
+#AS stieltjes
+#Topk stieljes 
+#e^{1/(lambda - x_i)}
+#\sum_q 1/q! X 1/(lambda - x_i)^q
+#CLRS bench
+#TODO:
+#triton
+Next steps:
+1) Try Adaptive Temperature Stieltjes for all the fixed q
+2) Try ASStieltjes…
+3) top k followed by stieltjes (for all the fixed q)
+4) exponential stieltjes
+—
+5) If done with these on the max retrieval task, then can try the CLRS Algorithm task or any of the other tasks in the ASEntmax paper

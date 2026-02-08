@@ -38,7 +38,7 @@ class StieltjesTransform(ProbabilitySimplexMapping):
     ) -> torch.Tensor:
         """Calculates 1 / (lambda_q - x_i)^q"""
         
-        logits = torch.clamp(logits, min=-50.0, max=50.0)
+        # logits = torch.clamp(logits, min=-50.0, max=50.0)
         
         x_max = torch.max(logits, dim=dim, keepdim=True).values
         x_i = logits - x_max

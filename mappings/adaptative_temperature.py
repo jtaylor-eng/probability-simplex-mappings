@@ -37,7 +37,7 @@ class AdaptiveSoftmax(ProbabilitySimplexMapping):
         beta = torch.where(greater_mask, torch.maximum(poly_val, one), one)
         beta = beta.to(dtype=logits.dtype)
         
-        logits_clamped = torch.clamp(logits, min=-50.0, max=50.0)
-        logits_scaled = logits_clamped * beta
+        # logits_clamped = torch.clamp(logits, min=-50.0, max=50.0)
+        logits_scaled = logits * beta #logits_clamped * beta
         
         return F.softmax(logits_scaled, dim=dim)

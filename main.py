@@ -27,30 +27,32 @@ OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
 EXPERIMENTS: List[Experiment] = [
-    Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
-    Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
-    Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
-    Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
-    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+    # Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
+    # Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
+    # Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
+    # Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
+    # Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+    Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
+    Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
 
-    Experiment("Softmax Veličković et al. (2025)", SimplexMappingEnum.softmax, {}),
-    Experiment("Adapt. temp. Veličković et al. (2025)", SimplexMappingEnum.adaptive_temperature, {}),
-    Experiment("Softmax θ = √d", SimplexMappingEnum.softmax, {"temperature": "root_d", "attn_score_scale": "none"}),
-    Experiment("Softmax θ = 0.1", SimplexMappingEnum.softmax, {"temperature": 0.1, "attn_score_scale": "none"}),
-    Experiment("Softmax θ = 0.0004", SimplexMappingEnum.softmax, {"temperature": 0.0004, "attn_score_scale": "none"}),
-    Experiment("SSMax", SimplexMappingEnum.scalable_softmax, {}),
-    Experiment("Top-K, K = 2", SimplexMappingEnum.topk_attn, {"k": 2}),
-    Experiment("Top-K, K = 4", SimplexMappingEnum.topk_attn, {"k": 4}),
-    Experiment("Entmax α = 1.5", SimplexMappingEnum.alpha_entmax, {"alpha": 1.5}),
-    Experiment("Entmax α = 2", SimplexMappingEnum.alpha_entmax, {"alpha": 2.0}),
-    Experiment("Entmax α = 4", SimplexMappingEnum.alpha_entmax, {"alpha": 4.0}),
-    Experiment("Entmax α = 16", SimplexMappingEnum.alpha_entmax, {"alpha": 16.0}),
-    Experiment("Entmax α = 32", SimplexMappingEnum.alpha_entmax, {"alpha": 32.0}),
-    Experiment("Entmax α = 64", SimplexMappingEnum.alpha_entmax, {"alpha": 64.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 1", SimplexMappingEnum.as_entmax, {"gamma": 1.0, "delta": 1.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 2", SimplexMappingEnum.as_entmax, {"gamma": 2.0, "delta": 1.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 3", SimplexMappingEnum.as_entmax, {"gamma": 3.0, "delta": 1.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 4", SimplexMappingEnum.as_entmax, {"gamma": 4.0, "delta": 1.0}),
+    # Experiment("Softmax Veličković et al. (2025)", SimplexMappingEnum.softmax, {}),
+    # Experiment("Adapt. temp. Veličković et al. (2025)", SimplexMappingEnum.adaptive_temperature, {}),
+    # Experiment("Softmax θ = √d", SimplexMappingEnum.softmax, {"temperature": "root_d", "attn_score_scale": "none"}),
+    # Experiment("Softmax θ = 0.1", SimplexMappingEnum.softmax, {"temperature": 0.1, "attn_score_scale": "none"}),
+    # Experiment("Softmax θ = 0.0004", SimplexMappingEnum.softmax, {"temperature": 0.0004, "attn_score_scale": "none"}),
+    # Experiment("SSMax", SimplexMappingEnum.scalable_softmax, {}),
+    # Experiment("Top-K, K = 2", SimplexMappingEnum.topk_attn, {"k": 2}),
+    # Experiment("Top-K, K = 4", SimplexMappingEnum.topk_attn, {"k": 4}),
+    # Experiment("Entmax α = 1.5", SimplexMappingEnum.alpha_entmax, {"alpha": 1.5}),
+    # Experiment("Entmax α = 2", SimplexMappingEnum.alpha_entmax, {"alpha": 2.0}),
+    # Experiment("Entmax α = 4", SimplexMappingEnum.alpha_entmax, {"alpha": 4.0}),
+    # Experiment("Entmax α = 16", SimplexMappingEnum.alpha_entmax, {"alpha": 16.0}),
+    # Experiment("Entmax α = 32", SimplexMappingEnum.alpha_entmax, {"alpha": 32.0}),
+    # Experiment("Entmax α = 64", SimplexMappingEnum.alpha_entmax, {"alpha": 64.0}),
+    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 1", SimplexMappingEnum.as_entmax, {"gamma": 1.0, "delta": 1.0}),
+    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 2", SimplexMappingEnum.as_entmax, {"gamma": 2.0, "delta": 1.0}),
+    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 3", SimplexMappingEnum.as_entmax, {"gamma": 3.0, "delta": 1.0}),
+    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 4", SimplexMappingEnum.as_entmax, {"gamma": 4.0, "delta": 1.0}),
 ]
 
 
@@ -181,7 +183,7 @@ def run_table8() -> None:
     
     lr = 1e-3 
     warmup_steps = 5_000
-    weight_decay = 0.0 
+    weight_decay = 1e-4 
 
     eval_samples_id = 2048 
     eval_samples_ood = 1024 
@@ -251,6 +253,18 @@ def run_table8() -> None:
     print("\t".join(header))
     for name, row in results.items():
         print("\t".join([name] + [f"{x:.1f}" for x in row]))
+    
+    with open("final_results.txt", "w") as f:
+        f.write("\n\n" + "="*30 + "\n")
+        f.write("FINAL RESULTS\n")
+        f.write("="*30 + "\n")
+
+        header = ["Model"] + [str(L) for L in ALL_LENS]
+        f.write("\t".join(header) + "\n")
+
+        for name, row in results.items():
+            f.write("\t".join([name] + [f"{x:.1f}" for x in row]) + "\n")
+ 
 
 
 if __name__ == "__main__":

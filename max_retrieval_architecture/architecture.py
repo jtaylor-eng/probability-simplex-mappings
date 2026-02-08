@@ -52,14 +52,21 @@ class MaxRetrievalModel(nn.Module):
 
         self._translate_logits = self._translation_cls(**init_kwargs)
         
-        self.psi_x = MLP(item_input_dim, d_emb, d_emb) #items
-        self.psi_q = MLP(query_input_dim, d_emb, d_emb) #query
+        # self.psi_x = MLP(item_input_dim, d_emb, d_emb) #items
+        # self.psi_q = MLP(query_input_dim, d_emb, d_emb) #query
         
-        self.q_proj = nn.Linear(d_emb, d_emb)
-        self.k_proj = nn.Linear(d_emb, d_emb)
-        self.v_proj = nn.Linear(d_emb, d_emb)
+        self.psi_x = nn.Linear(item_input_dim, d_emb)
+        self.psi_q = nn.Linear(query_input_dim, d_emb)
         
-        self.phi = MLP(d_emb, d_emb, n_classes)
+        # self.q_proj = nn.Linear(d_emb, d_emb)
+        # self.k_proj = nn.Linear(d_emb, d_emb)
+        # self.v_proj = nn.Linear(d_emb, d_emb)
+        self.q_proj = nn.Linear(query_input_dim, d_emb)
+        self.k_proj = nn.Linear(item_input_dim, d_emb)
+        self.v_proj = nn.Linear(item_input_dim, d_emb)
+        
+        # self.phi = MLP(d_emb, d_emb, n_classes)
+        self.phi = nn.Linear(d_emb, n_classes)
             
         self.kwargs = kwargs
 
@@ -67,12 +74,15 @@ class MaxRetrievalModel(nn.Module):
         # x_items (B, T, item_input_dim); x_query (B, 1)
         
         x_query_unsqueezed = x_query.unsqueeze(-1)
-        h_items = self.psi_x(x_items)
-        h_query = self.psi_q(x_query_unsqueezed)
+        # h_items = self.psi_x(x_items)
+        # h_query = self.psi_q(x_query_unsqueezed)
         
-        q = self.q_proj(h_query)
-        k = self.k_proj(h_items)
-        v = self.v_proj(h_items)
+        # q = self.q_proj(h_query)
+        # k = self.k_proj(h_items)
+        # v = self.v_proj(h_items)
+        q = self.q_proj(x_query_unsqueezed)
+        k = self.k_proj(x_items)
+        v = self.v_proj(x_items)
         
         attn_scores = torch.matmul(q, k.transpose(-2, -1))
 
@@ -83,9 +93,7 @@ class MaxRetrievalModel(nn.Module):
         else:
             raise ValueError(f"Unknown attn_score_scale={self.attn_score_scale!r}")
 
-        # Always pass `queries` and `d_emb` for mappings that need them.
         call_kwargs = dict(self.kwargs)
-        # Avoid passing duplicate keywords (e.g., if d_model is present in mapping kwargs).
         call_kwargs.pop("d_model", None)
         call_kwargs.pop("d_emb", None)
         call_kwargs.pop("queries", None)
