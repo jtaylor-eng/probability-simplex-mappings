@@ -5,10 +5,14 @@ from .alpha_entmax import AlphaEntmax
 from .softmax import Softmax
 from .sparsemax import Sparsemax
 from .stieltjes import StieltjesTransform
-from .stieltjes_learnable_q import LearnableStieltjes
 from .as_entmax import AdaptiveScalableEntmax
 from .scalable_softmax import ScalableSoftmax
 from .topk_attn import TopKAttention
+from .as_stieltjes import AdaptiveScalableStieltjes
+from .scalable_stieltjes import ScalableStieltjes
+from .topk_stieltjes import TopKStieltjes
+from .adaptive_temperature_stieltjes import AdaptiveTemperatureStieltjes
+from .exponential_stieltjes import ExponentialStieltjesTransform
 
 class SimplexMappingEnum(Enum):
     softmax=Softmax
@@ -19,3 +23,8 @@ class SimplexMappingEnum(Enum):
     sparsemax = Sparsemax
     alpha_entmax = AlphaEntmax
     as_entmax = AdaptiveScalableEntmax
+    as_stieltjes = AdaptiveScalableStieltjes
+    scalable_stieltjes = ScalableStieltjes
+    topk_stieltjes = TopKStieltjes
+    adaptive_temperature_stieltjes = AdaptiveTemperatureStieltjes
+    exponential_stieltjes = ExponentialStieltjesTransform

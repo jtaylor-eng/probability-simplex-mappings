@@ -5,7 +5,7 @@ from entmax import entmax15
 from .base_cls import ProbabilitySimplexMapping
 
 class AdaptiveScalableEntmax(ProbabilitySimplexMapping):
-    def __init__(self, d_model, n_heads, gamma=1.0, delta=1.0):
+    def __init__(self, d_model, n_heads=1, gamma=1.0, delta=1.0):
         super().__init__()
         self.delta = delta
 

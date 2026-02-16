@@ -30,5 +30,8 @@ Next steps:
 2) Try ASStieltjes…
 3) top k followed by stieltjes (for all the fixed q)
 4) exponential stieltjes
-—
 5) If done with these on the max retrieval task, then can try the CLRS Algorithm task or any of the other tasks in the ASEntmax paper
+
+
+{exp(1/(lambda - x_i))}_{I = 1,…,n}
+Lambda > x_i and such that the exponential (..) sums to 1

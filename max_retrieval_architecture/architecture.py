@@ -41,11 +41,6 @@ class MaxRetrievalModel(nn.Module):
             if p.name not in {"self", "args", "kwargs"}
         }
 
-        # Provide common defaults for methods that require model dims.
-        if simplex_mapping == SimplexMappingEnum.as_entmax:
-            kwargs.setdefault("d_model", d_emb)
-            kwargs.setdefault("n_heads", 1)
-
         for k, v in kwargs.items():
             if k in init_param_names:
                 init_kwargs[k] = v

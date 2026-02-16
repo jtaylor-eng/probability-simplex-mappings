@@ -26,35 +26,13 @@ ID_LEN: int = 16
 OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
+D_EMB = 128
+
+Q_VALS = [4, 8, 16, 32, 64]
+
 EXPERIMENTS: List[Experiment] = [
-    # Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
-    # Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
-    # Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
-    # Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
-    # Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
-    Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
-    Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
-
-    # Experiment("Softmax Veličković et al. (2025)", SimplexMappingEnum.softmax, {}),
-    # Experiment("Adapt. temp. Veličković et al. (2025)", SimplexMappingEnum.adaptive_temperature, {}),
-    # Experiment("Softmax θ = √d", SimplexMappingEnum.softmax, {"temperature": "root_d", "attn_score_scale": "none"}),
-    # Experiment("Softmax θ = 0.1", SimplexMappingEnum.softmax, {"temperature": 0.1, "attn_score_scale": "none"}),
-    # Experiment("Softmax θ = 0.0004", SimplexMappingEnum.softmax, {"temperature": 0.0004, "attn_score_scale": "none"}),
-    # Experiment("SSMax", SimplexMappingEnum.scalable_softmax, {}),
-    # Experiment("Top-K, K = 2", SimplexMappingEnum.topk_attn, {"k": 2}),
-    # Experiment("Top-K, K = 4", SimplexMappingEnum.topk_attn, {"k": 4}),
-    # Experiment("Entmax α = 1.5", SimplexMappingEnum.alpha_entmax, {"alpha": 1.5}),
-    # Experiment("Entmax α = 2", SimplexMappingEnum.alpha_entmax, {"alpha": 2.0}),
-    # Experiment("Entmax α = 4", SimplexMappingEnum.alpha_entmax, {"alpha": 4.0}),
-    # Experiment("Entmax α = 16", SimplexMappingEnum.alpha_entmax, {"alpha": 16.0}),
-    # Experiment("Entmax α = 32", SimplexMappingEnum.alpha_entmax, {"alpha": 32.0}),
-    # Experiment("Entmax α = 64", SimplexMappingEnum.alpha_entmax, {"alpha": 64.0}),
-    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 1", SimplexMappingEnum.as_entmax, {"gamma": 1.0, "delta": 1.0}),
-    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 2", SimplexMappingEnum.as_entmax, {"gamma": 2.0, "delta": 1.0}),
-    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 3", SimplexMappingEnum.as_entmax, {"gamma": 3.0, "delta": 1.0}),
-    # Experiment("ASEntmax, α = 1.5, βlearn, γ = 4", SimplexMappingEnum.as_entmax, {"gamma": 4.0, "delta": 1.0}),
+    *[Experiment(f"AdaptiveTemp-Stieltjes q={q}",SimplexMappingEnum.adaptive_temperature_stieltjes,{"q": float(q)},) for q in Q_VALS],
 ]
-
 
 def _set_seeds(seed: int) -> None:
     np.random.seed(seed)
@@ -174,7 +152,6 @@ def eval_accuracy(
 
 
 def run_table8() -> None:
-    d_emb = 128
     n_classes = 10
     item_input_dim = 1 + n_classes
 
@@ -202,7 +179,7 @@ def run_table8() -> None:
 
             model = MaxRetrievalModel(
                 simplex_mapping=exp.mapping,
-                d_emb=d_emb,
+                d_emb=D_EMB,
                 n_classes=n_classes,
                 item_input_dim=item_input_dim,
                 query_input_dim=1,
