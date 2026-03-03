@@ -1,0 +1,9 @@
+[submodule "submodules/modded_nanogpt"]
+	path = submodules/modded_nanogpt
+	url = https://github.com/KellerJordan/modded-nanogpt
+[submodule "submodules/torchtitan"]
+	path = submodules/torchtitan
+	url = https://github.com/pytorch/torchtitan
+[submodule "submodules/zoology"]
+	path = submodules/zoology
+	url = https://github.com/HazyResearch/zoology
