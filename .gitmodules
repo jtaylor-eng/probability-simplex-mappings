@@ -7,9 +7,3 @@
 [submodule "submodules/zoology"]
 	path = submodules/zoology
 	url = https://github.com/HazyResearch/zoology
-[submodule "submodules/nanoGPT"]
-	path = submodules/nanoGPT
-	url = https://github.com/jtaylor-eng/nanoGPT.git
-[submodule "submodules/asentmax"]
-	path = submodules/asentmax
-	url = https://github.com/deep-spin/asentmax
