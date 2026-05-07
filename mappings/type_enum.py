@@ -12,6 +12,7 @@ from .as_stieltjes import AdaptiveScalableStieltjes
 from .scalable_stieltjes import ScalableStieltjes
 from .topk_stieltjes import TopKStieltjes
 from .adaptive_temperature_stieltjes import AdaptiveTemperatureStieltjes
+from .exponential_stieltjes import ExponentialStieltjesTransform
 
 class SimplexMappingEnum(Enum):
     softmax=Softmax
@@ -26,3 +27,4 @@ class SimplexMappingEnum(Enum):
     scalable_stieltjes = ScalableStieltjes
     topk_stieltjes = TopKStieltjes
     adaptive_temperature_stieltjes = AdaptiveTemperatureStieltjes
+    exponential_stieltjes = ExponentialStieltjesTransform
