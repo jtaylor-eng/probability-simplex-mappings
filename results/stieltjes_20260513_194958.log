@@ -1,0 +1,18 @@
+Starting experiments at Wed May 13 19:50:02 EDT 2026
+
+Running on mps with 50000 steps, batch size 256
+Experiments:   0%|          | 0/6 [00:00<?, ?it/s]Experiments:  17%|█▋        | 1/6 [00:00<00:00,  6.89it/s]Experiments: 100%|██████████| 6/6 [00:00<00:00, 41.05it/s]
+Failed ASStieltjes q=2 with e, skipping
+Failed ASStieltjes q=4 with e, skipping
+Failed ASStieltjes q=8 with e, skipping
+Failed ASStieltjes q=16 with e, skipping
+Failed ASStieltjes q=32 with e, skipping
+Failed ASStieltjes q=64 with e, skipping
+
+
+==============================
+FINAL RESULTS
+==============================
+Model	16	32	64	128	256	512	1024	2048	4096
+
+Finished at Wed May 13 19:50:03 EDT 2026

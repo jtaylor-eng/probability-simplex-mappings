@@ -1,0 +1,17 @@
+Starting experiments at Wed May 13 19:51:41 EDT 2026
+
+Running on mps with 50000 steps, batch size 256
+Experiments:   0%|          | 0/6 [00:00<?, ?it/s]Experiments:   0%|          | 0/6 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/jacktaylor2/Desktop/simplex_mappings/probability-simplex-mappings/main.py", line 248, in <module>
+    run_table8()
+  File "/Users/jacktaylor2/Desktop/simplex_mappings/probability-simplex-mappings/main.py", line 192, in run_table8
+    model = MaxRetrievalModel(
+            ^^^^^^^^^^^^^^^^^^
+  File "/Users/jacktaylor2/Desktop/simplex_mappings/probability-simplex-mappings/max_retrieval_architecture/architecture.py", line 53, in __init__
+    self._translate_logits = self._translation_cls(**init_kwargs)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jacktaylor2/Desktop/simplex_mappings/probability-simplex-mappings/mappings/as_stieltjes.py", line 66, in __init__
+    self._base = StieltjesTransform(q=q_order, num_iter=num_iter, eps=eps)
+                 ^^^^^^^^^^^^^^^^^^
+NameError: name 'StieltjesTransform' is not defined

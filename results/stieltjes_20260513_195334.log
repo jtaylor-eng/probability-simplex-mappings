@@ -1,0 +1,30 @@
+Starting experiments at Wed May 13 19:53:36 EDT 2026
+
+Running on mps with 50000 steps, batch size 256
+Experiments:   0%|          | 0/6 [00:00<?, ?it/s]
+Training:   0%|          | 0/50000 [00:00<?, ?it/s][A
+                                                   [AExperiments:  17%|█▋        | 1/6 [00:00<00:04,  1.15it/s]Failed ASStieltjes q=2 with einsum(): subscript d has size 64 for operand 1 which does not broadcast with previously seen size 128, skipping
+
+Training:   0%|          | 0/50000 [00:00<?, ?it/s][A
+                                                   [AFailed ASStieltjes q=4 with einsum(): subscript d has size 64 for operand 1 which does not broadcast with previously seen size 128, skipping
+
+Training:   0%|          | 0/50000 [00:00<?, ?it/s][A
+                                                   [AFailed ASStieltjes q=8 with einsum(): subscript d has size 64 for operand 1 which does not broadcast with previously seen size 128, skipping
+
+Training:   0%|          | 0/50000 [00:00<?, ?it/s][A
+                                                   [AFailed ASStieltjes q=16 with einsum(): subscript d has size 64 for operand 1 which does not broadcast with previously seen size 128, skipping
+
+Training:   0%|          | 0/50000 [00:00<?, ?it/s][A
+                                                   [AFailed ASStieltjes q=32 with einsum(): subscript d has size 64 for operand 1 which does not broadcast with previously seen size 128, skipping
+
+Training:   0%|          | 0/50000 [00:00<?, ?it/s][A
+                                                   [AExperiments: 100%|██████████| 6/6 [00:00<00:00,  6.58it/s]
+Failed ASStieltjes q=64 with einsum(): subscript d has size 64 for operand 1 which does not broadcast with previously seen size 128, skipping
+
+
+==============================
+FINAL RESULTS
+==============================
+Model	16	32	64	128	256	512	1024	2048	4096
+
+Finished at Wed May 13 19:53:37 EDT 2026

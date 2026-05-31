@@ -11,8 +11,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from asentmax_comp.max_retrieval_architecture.architecture import MaxRetrievalModel
-from asentmax_comp.mappings.type_enum import SimplexMappingEnum
+from max_retrieval_architecture.architecture import MaxRetrievalModel
+from mappings.type_enum import SimplexMappingEnum
 
 
 @dataclass(frozen=True)
@@ -26,32 +26,31 @@ ID_LEN: int = 16
 OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
-EXPERIMENTS: List[Experiment] = [
-    Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
-    Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
-    Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
-    Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
-    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+#EXPERIMENTS: List[Experiment] = [
+#    Experiment("ASStieltjes q=2",  SimplexMappingEnum.as_stieltjes, {"q_order": 2.0}),
+#    Experiment("ASStieltjes q=4",  SimplexMappingEnum.as_stieltjes, {"q_order": 4.0}),
+#    Experiment("ASStieltjes q=8",  SimplexMappingEnum.as_stieltjes, {"q_order": 8.0}),
+#    Experiment("ASStieltjes q=16", SimplexMappingEnum.as_stieltjes, {"q_order": 16.0}),
+#    Experiment("ASStieltjes q=32", SimplexMappingEnum.as_stieltjes, {"q_order": 32.0}),
+#    Experiment("ASStieltjes q=64", SimplexMappingEnum.as_stieltjes, {"q_order": 64.0}),
+#]
 
-    Experiment("Softmax Veličković et al. (2025)", SimplexMappingEnum.softmax, {}),
-    Experiment("Adapt. temp. Veličković et al. (2025)", SimplexMappingEnum.adaptive_temperature, {}),
-    Experiment("Softmax θ = √d", SimplexMappingEnum.softmax, {"temperature": "root_d", "attn_score_scale": "none"}),
-    Experiment("Softmax θ = 0.1", SimplexMappingEnum.softmax, {"temperature": 0.1, "attn_score_scale": "none"}),
-    Experiment("Softmax θ = 0.0004", SimplexMappingEnum.softmax, {"temperature": 0.0004, "attn_score_scale": "none"}),
-    Experiment("SSMax", SimplexMappingEnum.scalable_softmax, {}),
-    Experiment("Top-K, K = 2", SimplexMappingEnum.topk_attn, {"k": 2}),
-    Experiment("Top-K, K = 4", SimplexMappingEnum.topk_attn, {"k": 4}),
-    Experiment("Entmax α = 1.5", SimplexMappingEnum.alpha_entmax, {"alpha": 1.5}),
-    Experiment("Entmax α = 2", SimplexMappingEnum.alpha_entmax, {"alpha": 2.0}),
-    Experiment("Entmax α = 4", SimplexMappingEnum.alpha_entmax, {"alpha": 4.0}),
-    Experiment("Entmax α = 16", SimplexMappingEnum.alpha_entmax, {"alpha": 16.0}),
-    Experiment("Entmax α = 32", SimplexMappingEnum.alpha_entmax, {"alpha": 32.0}),
-    Experiment("Entmax α = 64", SimplexMappingEnum.alpha_entmax, {"alpha": 64.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 1", SimplexMappingEnum.as_entmax, {"gamma": 1.0, "delta": 1.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 2", SimplexMappingEnum.as_entmax, {"gamma": 2.0, "delta": 1.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 3", SimplexMappingEnum.as_entmax, {"gamma": 3.0, "delta": 1.0}),
-    Experiment("ASEntmax, α = 1.5, βlearn, γ = 4", SimplexMappingEnum.as_entmax, {"gamma": 4.0, "delta": 1.0}),
+EXPERIMENTS: List[Experiment] = [
+    Experiment("Stieltjes q=2",  SimplexMappingEnum.stieltjes, {"q": 2.0}),
+    Experiment("Stieltjes q=4",  SimplexMappingEnum.stieltjes, {"q": 4.0}),
+    Experiment("Stieltjes q=8",  SimplexMappingEnum.stieltjes, {"q": 8.0}),
+    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+    Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
+    Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
 ]
+
+
+def _get_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
 
 
 def _set_seeds(seed: int) -> None:
@@ -107,22 +106,23 @@ def train_max_retrieval(
     )
     
     loss_fn = nn.CrossEntropyLoss()
-    
-    try:
-        @torch.compile
-        def train_step(items, queries, targets):
-            opt.zero_grad(set_to_none=True)
-            logits = model(items, queries)
-            loss = loss_fn(logits, targets)
-            loss.backward()
-            return loss
-    except:
-        def train_step(items, queries, targets):
-            opt.zero_grad(set_to_none=True)
-            logits = model(items, queries)
-            loss = loss_fn(logits, targets)
-            loss.backward()
-            return loss
+
+    def _base_train_step(items, queries, targets):
+        opt.zero_grad(set_to_none=True)
+        logits = model(items, queries)
+        loss = loss_fn(logits, targets)
+        loss.backward()
+        return loss
+
+    # torch.compile has known limitations with data-dependent branching (bisection)
+    # on MPS; skip it there and fall back to eager.
+    if device != "mps":
+        try:
+            train_step = torch.compile(_base_train_step)
+        except Exception:
+            train_step = _base_train_step
+    else:
+        train_step = _base_train_step
 
     pbar = tqdm(range(training_steps), desc="Training", leave=False)
     for step in pbar:
@@ -186,7 +186,7 @@ def run_table8() -> None:
     eval_samples_id = 2048 
     eval_samples_ood = 1024 
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = _get_device()
     print(f"Running on {device} with {training_steps} steps, batch size {batch_size}")
 
     results: Dict[str, List[float]] = {}
@@ -241,7 +241,7 @@ def run_table8() -> None:
             results[exp.name] = row
             print(f"Finished {exp.name}: {row}")
         except Exception as e:
-            print(f"Failed {exp.name} with e, skipping")
+            print(f"Failed {exp.name} with {e}, skipping")
 
     # Output
     print("\n\n" + "="*30)

@@ -3,7 +3,12 @@ import torch
 from .base_cls import ProbabilitySimplexMapping
 
 class StieltjesTransform(ProbabilitySimplexMapping):
-    """Stieltjes transform as introduced, using binary search."""
+    """Stieltjes / Tsallis-q simplex mapping via bisection on the dual variable.
+
+    yᵢ = (λ_q - xᵢ)^(-q),  Σ yᵢ = 1
+    Upper bound n^(1/q) is dynamic so OOD lengths beyond training length work.
+    Output is explicitly normalised to guard against bisection float drift.
+    """
     def __init__(
         self,
         q: float = 1.0,
@@ -15,20 +20,17 @@ class StieltjesTransform(ProbabilitySimplexMapping):
         self._num_iter = num_iter
         self._eps = eps
 
-    def _line_search_bs(self, shifted_logits, dim, lb, ub):
+    def _bisect_lambda(self, shifted_logits, dim, lb, ub):
         for _ in range(self._num_iter):
-            mid = (lb + ub) / 2.0
-            
-            prob_sum = torch.sum(
+            mid = (lb + ub) * 0.5
+            f_mid = torch.sum(
                 torch.pow((mid - shifted_logits).clamp(min=self._eps), -self._q),
                 dim=dim,
-                keepdim=True
-            ) - 1
-            
-            lb = torch.where(prob_sum > 0, mid, lb)
-            ub = torch.where(prob_sum <= 0, mid, ub)
-
-        return lb, ub
+                keepdim=True,
+            ) - 1.0
+            lb = torch.where(f_mid > 0.0, mid, lb)
+            ub = torch.where(f_mid <= 0.0, mid, ub)
+        return (lb + ub) * 0.5
 
     def translate_logits(
         self,
@@ -36,23 +38,15 @@ class StieltjesTransform(ProbabilitySimplexMapping):
         dim,
         **kwargs,
     ) -> torch.Tensor:
-        """Calculates 1 / (lambda_q - x_i)^q"""
-        
-        logits = torch.clamp(logits, min=-50.0, max=50.0)
-        
-        x_max = torch.max(logits, dim=dim, keepdim=True).values
-        x_i = logits - x_max
+
+        n = logits.shape[dim]
+        x_max = logits.max(dim=dim, keepdim=True).values
+        shifted = logits - x_max
 
         lb = torch.full_like(x_max, self._eps)
-        ub = torch.full_like(x_max, logits.shape[dim] ** (1.0/ self._q))
+        ub = torch.full_like(x_max, n ** (1.0 / self._q))
 
-        lb, ub = self._line_search_bs(
-            shifted_logits=x_i,
-            dim=dim,
-            lb=lb,
-            ub=ub
-        )
-        lambda_1 = (lb + ub) / 2.0
-        
-        # 1 / (lambda_q - x_i)^q
-        return torch.pow((lambda_1 - x_i).clamp(min=self._eps), -self._q)
+        lam = self._bisect_lambda(shifted, dim, lb, ub)
+
+        probs = torch.pow((lam - shifted).clamp(min=self._eps), -self._q)
+        return probs / probs.sum(dim=dim, keepdim=True).clamp(min=self._eps)

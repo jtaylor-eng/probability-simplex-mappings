@@ -3,7 +3,7 @@ import torch.nn as nn
 import inspect
 from typing import Literal, Optional, Callable, List
 
-from asentmax_comp.mappings.type_enum import SimplexMappingEnum
+from mappings.type_enum import SimplexMappingEnum
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim):
@@ -42,7 +42,7 @@ class MaxRetrievalModel(nn.Module):
         }
 
         # Provide common defaults for methods that require model dims.
-        if simplex_mapping == SimplexMappingEnum.as_entmax:
+        if simplex_mapping in (SimplexMappingEnum.as_entmax, SimplexMappingEnum.as_stieltjes):
             kwargs.setdefault("d_model", d_emb)
             kwargs.setdefault("n_heads", 1)
 
