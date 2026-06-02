@@ -4,7 +4,7 @@ from .adaptative_temperature import AdaptiveSoftmax
 from .alpha_entmax import AlphaEntmax
 from .softmax import Softmax
 from .sparsemax import Sparsemax
-from .stieltjes_old import StieltjesTransform
+from .stieltjes import StieltjesTransform
 from .stieltjes_learnable_q import LearnableStieltjes
 from .as_entmax import AdaptiveScalableEntmax
 from .scalable_softmax import ScalableSoftmax

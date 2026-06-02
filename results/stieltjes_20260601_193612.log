@@ -1,0 +1,6 @@
+Starting experiments at Mon Jun  1 19:36:13 EDT 2026
+
+Traceback (most recent call last):
+  File "/Users/jacktaylor2/Desktop/simplex_mappings/probability-simplex-mappings/main.py", line 14, in <module>
+    from asentmax_comp.max_retrieval_architecture.architecture import MaxRetrievalModel
+ModuleNotFoundError: No module named 'asentmax_comp'

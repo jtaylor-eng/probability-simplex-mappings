@@ -26,31 +26,23 @@ ID_LEN: int = 16
 OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
-#EXPERIMENTS: List[Experiment] = [
-#    Experiment("ASStieltjes q=2",  SimplexMappingEnum.as_stieltjes, {"q_order": 2.0}),
-#    Experiment("ASStieltjes q=4",  SimplexMappingEnum.as_stieltjes, {"q_order": 4.0}),
-#    Experiment("ASStieltjes q=8",  SimplexMappingEnum.as_stieltjes, {"q_order": 8.0}),
-#    Experiment("ASStieltjes q=16", SimplexMappingEnum.as_stieltjes, {"q_order": 16.0}),
-#    Experiment("ASStieltjes q=32", SimplexMappingEnum.as_stieltjes, {"q_order": 32.0}),
-#    Experiment("ASStieltjes q=64", SimplexMappingEnum.as_stieltjes, {"q_order": 64.0}),
-#]
+# EXPERIMENTS: List[Experiment] = [
+#     Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
+#     Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
+#     Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
+#     Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
+#     Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+#     Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
+#     Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
+# ]
 
 EXPERIMENTS: List[Experiment] = [
-    Experiment("Stieltjes q=2",  SimplexMappingEnum.stieltjes, {"q": 2.0}),
-    Experiment("Stieltjes q=4",  SimplexMappingEnum.stieltjes, {"q": 4.0}),
-    Experiment("Stieltjes q=8",  SimplexMappingEnum.stieltjes, {"q": 8.0}),
-    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
-    Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
-    Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
+    Experiment("ASStieltjes βlearn γlearn q=2",  SimplexMappingEnum.as_stieltjes, {"q_order": 2.0}),
+    Experiment("ASStieltjes βlearn γlearn q=4",  SimplexMappingEnum.as_stieltjes, {"q_order": 4.0}),
+    Experiment("ASStieltjes βlearn γlearn q=8",  SimplexMappingEnum.as_stieltjes, {"q_order": 8.0}),
+    Experiment("ASStieltjes βlearn γlearn q=16", SimplexMappingEnum.as_stieltjes, {"q_order": 16.0}),
+    Experiment("ASStieltjes βlearn γlearn q=32", SimplexMappingEnum.as_stieltjes, {"q_order": 32.0}),
 ]
-
-
-def _get_device() -> str:
-    if torch.cuda.is_available():
-        return "cuda"
-    if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
 
 
 def _set_seeds(seed: int) -> None:
@@ -106,23 +98,22 @@ def train_max_retrieval(
     )
     
     loss_fn = nn.CrossEntropyLoss()
-
-    def _base_train_step(items, queries, targets):
-        opt.zero_grad(set_to_none=True)
-        logits = model(items, queries)
-        loss = loss_fn(logits, targets)
-        loss.backward()
-        return loss
-
-    # torch.compile has known limitations with data-dependent branching (bisection)
-    # on MPS; skip it there and fall back to eager.
-    if device != "mps":
-        try:
-            train_step = torch.compile(_base_train_step)
-        except Exception:
-            train_step = _base_train_step
-    else:
-        train_step = _base_train_step
+    
+    try:
+        @torch.compile
+        def train_step(items, queries, targets):
+            opt.zero_grad(set_to_none=True)
+            logits = model(items, queries)
+            loss = loss_fn(logits, targets)
+            loss.backward()
+            return loss
+    except:
+        def train_step(items, queries, targets):
+            opt.zero_grad(set_to_none=True)
+            logits = model(items, queries)
+            loss = loss_fn(logits, targets)
+            loss.backward()
+            return loss
 
     pbar = tqdm(range(training_steps), desc="Training", leave=False)
     for step in pbar:
@@ -181,12 +172,12 @@ def run_table8() -> None:
     
     lr = 1e-3 
     warmup_steps = 5_000
-    weight_decay = 0.0 
+    weight_decay = 1e-4 
 
     eval_samples_id = 2048 
     eval_samples_ood = 1024 
 
-    device = _get_device()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Running on {device} with {training_steps} steps, batch size {batch_size}")
 
     results: Dict[str, List[float]] = {}
@@ -241,7 +232,7 @@ def run_table8() -> None:
             results[exp.name] = row
             print(f"Finished {exp.name}: {row}")
         except Exception as e:
-            print(f"Failed {exp.name} with {e}, skipping")
+            print(f"Failed {exp.name} with e, skipping")
 
     # Output
     print("\n\n" + "="*30)
@@ -251,6 +242,18 @@ def run_table8() -> None:
     print("\t".join(header))
     for name, row in results.items():
         print("\t".join([name] + [f"{x:.1f}" for x in row]))
+    
+    with open("final_results.txt", "w") as f:
+        f.write("\n\n" + "="*30 + "\n")
+        f.write("FINAL RESULTS\n")
+        f.write("="*30 + "\n")
+
+        header = ["Model"] + [str(L) for L in ALL_LENS]
+        f.write("\t".join(header) + "\n")
+
+        for name, row in results.items():
+            f.write("\t".join([name] + [f"{x:.1f}" for x in row]) + "\n")
+ 
 
 
 if __name__ == "__main__":
