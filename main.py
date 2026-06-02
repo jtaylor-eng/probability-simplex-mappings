@@ -37,6 +37,20 @@ ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 # ]
 
 EXPERIMENTS: List[Experiment] = [
+    Experiment("Stieltjes-old q=2",  SimplexMappingEnum.stieltjes_old, {"q": 2.0}),
+    Experiment("Stieltjes-old q=4",  SimplexMappingEnum.stieltjes_old, {"q": 4.0}),
+    Experiment("Stieltjes-old q=8",  SimplexMappingEnum.stieltjes_old, {"q": 8.0}),
+    Experiment("Stieltjes-old q=16", SimplexMappingEnum.stieltjes_old, {"q": 16.0}),
+    Experiment("Stieltjes-old q=32", SimplexMappingEnum.stieltjes_old, {"q": 32.0}),
+    Experiment("Stieltjes-old q=64", SimplexMappingEnum.stieltjes_old, {"q": 64.0}),
+
+    Experiment("Stieltjes q=2",  SimplexMappingEnum.stieltjes, {"q": 2.0}),
+    Experiment("Stieltjes q=4",  SimplexMappingEnum.stieltjes, {"q": 4.0}),
+    Experiment("Stieltjes q=8",  SimplexMappingEnum.stieltjes, {"q": 8.0}),
+    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+    Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
+    Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
+
     Experiment("ASStieltjes βlearn γlearn q=2",  SimplexMappingEnum.as_stieltjes, {"q_order": 2.0}),
     Experiment("ASStieltjes βlearn γlearn q=4",  SimplexMappingEnum.as_stieltjes, {"q_order": 4.0}),
     Experiment("ASStieltjes βlearn γlearn q=8",  SimplexMappingEnum.as_stieltjes, {"q_order": 8.0}),
@@ -177,7 +191,12 @@ def run_table8() -> None:
     eval_samples_id = 2048 
     eval_samples_ood = 1024 
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
     print(f"Running on {device} with {training_steps} steps, batch size {batch_size}")
 
     results: Dict[str, List[float]] = {}
