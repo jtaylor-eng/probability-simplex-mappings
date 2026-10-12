@@ -1,5 +1,5 @@
 ref.py
 data/
 __pycache__
-
+.venv
 theory_data/
