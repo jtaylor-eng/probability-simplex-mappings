@@ -11,8 +11,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from asentmax_comp.max_retrieval_architecture.architecture import MaxRetrievalModel
-from asentmax_comp.mappings.type_enum import SimplexMappingEnum
+from max_retrieval_architecture.architecture import MaxRetrievalModel
+from mappings.type_enum import SimplexMappingEnum
 
 
 @dataclass(frozen=True)
@@ -26,13 +26,38 @@ ID_LEN: int = 16
 OOD_LENS: List[int] = [32, 64, 128, 256, 512, 1024, 2048, 4096]
 ALL_LENS: List[int] = [ID_LEN] + OOD_LENS
 
-D_EMB = 128
-
-Q_VALS = [4, 8, 16, 32, 64]
+# EXPERIMENTS: List[Experiment] = [
+#     Experiment("Stieltjes q=2", SimplexMappingEnum.stieltjes, {"q": 2.0}),
+#     Experiment("Stieltjes q=4", SimplexMappingEnum.stieltjes, {"q": 4.0}),
+#     Experiment("Stieltjes q=6", SimplexMappingEnum.stieltjes, {"q": 6.0}),
+#     Experiment("Stieltjes q=8", SimplexMappingEnum.stieltjes, {"q": 8.0}),
+#     Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+#     Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
+#     Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
+# ]
 
 EXPERIMENTS: List[Experiment] = [
-    *[Experiment(f"AdaptiveTemp-Stieltjes q={q}",SimplexMappingEnum.adaptive_temperature_stieltjes,{"q": float(q)},) for q in Q_VALS],
+    Experiment("Stieltjes-old q=2",  SimplexMappingEnum.stieltjes_old, {"q": 2.0}),
+    Experiment("Stieltjes-old q=4",  SimplexMappingEnum.stieltjes_old, {"q": 4.0}),
+    Experiment("Stieltjes-old q=8",  SimplexMappingEnum.stieltjes_old, {"q": 8.0}),
+    Experiment("Stieltjes-old q=16", SimplexMappingEnum.stieltjes_old, {"q": 16.0}),
+    Experiment("Stieltjes-old q=32", SimplexMappingEnum.stieltjes_old, {"q": 32.0}),
+    Experiment("Stieltjes-old q=64", SimplexMappingEnum.stieltjes_old, {"q": 64.0}),
+
+    Experiment("Stieltjes q=2",  SimplexMappingEnum.stieltjes, {"q": 2.0}),
+    Experiment("Stieltjes q=4",  SimplexMappingEnum.stieltjes, {"q": 4.0}),
+    Experiment("Stieltjes q=8",  SimplexMappingEnum.stieltjes, {"q": 8.0}),
+    Experiment("Stieltjes q=16", SimplexMappingEnum.stieltjes, {"q": 16.0}),
+    Experiment("Stieltjes q=32", SimplexMappingEnum.stieltjes, {"q": 32.0}),
+    Experiment("Stieltjes q=64", SimplexMappingEnum.stieltjes, {"q": 64.0}),
+
+    Experiment("ASStieltjes βlearn γlearn q=2",  SimplexMappingEnum.as_stieltjes, {"q_order": 2.0}),
+    Experiment("ASStieltjes βlearn γlearn q=4",  SimplexMappingEnum.as_stieltjes, {"q_order": 4.0}),
+    Experiment("ASStieltjes βlearn γlearn q=8",  SimplexMappingEnum.as_stieltjes, {"q_order": 8.0}),
+    Experiment("ASStieltjes βlearn γlearn q=16", SimplexMappingEnum.as_stieltjes, {"q_order": 16.0}),
+    Experiment("ASStieltjes βlearn γlearn q=32", SimplexMappingEnum.as_stieltjes, {"q_order": 32.0}),
 ]
+
 
 def _set_seeds(seed: int) -> None:
     np.random.seed(seed)
@@ -152,6 +177,7 @@ def eval_accuracy(
 
 
 def run_table8() -> None:
+    d_emb = 128
     n_classes = 10
     item_input_dim = 1 + n_classes
 
@@ -165,7 +191,12 @@ def run_table8() -> None:
     eval_samples_id = 2048 
     eval_samples_ood = 1024 
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
     print(f"Running on {device} with {training_steps} steps, batch size {batch_size}")
 
     results: Dict[str, List[float]] = {}
@@ -179,7 +210,7 @@ def run_table8() -> None:
 
             model = MaxRetrievalModel(
                 simplex_mapping=exp.mapping,
-                d_emb=D_EMB,
+                d_emb=d_emb,
                 n_classes=n_classes,
                 item_input_dim=item_input_dim,
                 query_input_dim=1,
